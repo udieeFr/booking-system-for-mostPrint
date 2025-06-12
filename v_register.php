@@ -18,11 +18,11 @@
     }
 
     .register-container {
-      background: rgba(255, 250, 230, 0.9);
+      background: rgba(219, 203, 146, 0.85);
       padding: 30px;
       border-radius: 10px;
       box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-      width: 320px;
+      width: 300px;
       backdrop-filter: blur(5px);
     }
 

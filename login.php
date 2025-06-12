@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } 
     elseif ($role === 'staff') {
         $sql = "SELECT StaffID, StaffName, passwordHash FROM staffs WHERE StaffName = ?";
-        $redirect = "staffDashboard.php";
+        $redirect = "staffHome.php";
         $id_field = 'StaffID';
         $name_field = 'StaffName';
     } 
@@ -54,8 +54,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Set session variables
             $_SESSION['loggedin'] = true;
             $_SESSION['user_type'] = $role;
+            $_SESSION['role'] = $role; // Added for compatibility
             $_SESSION['user_id'] = $user[$id_field];
             $_SESSION['user_name'] = $user[$name_field];
+            $_SESSION['username'] = $user[$name_field]; // Added for staffHome.php
 
             // Redirect to appropriate dashboard
             header("Location: $redirect");
@@ -70,6 +72,5 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Close connection
 mysqli_close($conn);
 ?>

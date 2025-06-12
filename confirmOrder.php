@@ -84,7 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <meta charset="UTF-8">
   <title>Confirm Order</title>
   <style>
-    body { font-family: Arial; padding: 30px; max-width: 500px; margin: auto; background: #f4f4f4; }
+    body { font-family: Arial; padding: 30px; max-width: 500px; margin: auto; background: #f4f4f4f4; }
     h2, label { text-align: center; display: block; margin-top: 20px; }
     p { text-align: center; font-size: 16px; color: green; }
     input[type="file"], select, button {
@@ -92,6 +92,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       padding: 10px;
       margin-top: 10px;
       font-size: 16px;
+    }
+    .payment-info {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .payment-info img {
+      max-width: 200px;
+      height: auto;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -101,6 +110,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <p><strong>Page Count:</strong> <?= htmlspecialchars($pageCount) ?></p>
 <p><strong>Total Price:</strong> RM<?= number_format($totalPrice, 2) ?></p>
+
+<div class="payment-info">
+    <img src="img/qrcode.png" alt="QR Code for Payment">
+    <p>Bank Name: Bank Rakyat</p>
+    <p>Account Name: Atan Most</p>
+    <p>Account Number: 9991242910932392</p>
+</div>
 
 <form action="submitOrder.php" method="post" enctype="multipart/form-data">
 

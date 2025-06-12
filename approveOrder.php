@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conn->commit();
 
         echo "<h2 style='text-align:center; color:green;'>✅ Order Approved!</h2>";
-        echo "<p style='text-align:center;'><a href='staff_dashboard.php'>Back to Dashboard</a></p>";
+        echo "<p style='text-align:center;'><a href='staffHome.php'>Back to Dashboard</a></p>";
         exit();
     } catch (Exception $e) {
         $conn->rollback();

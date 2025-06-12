@@ -1,6 +1,7 @@
 <?php
 session_start();
 
+// Ensure user is logged in and is a staff member
 if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'staff') {
     header("Location: v_login.php?error=unauthorized");
     exit();
@@ -8,131 +9,274 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'staff') {
 
 $conn = new mysqli("localhost", "root", "", "mostdb");
 
-// Handle order approval if form submitted
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['approve_order'])) {
-    $orderID = $_POST['order_id'];
-    $staffID = $_SESSION['user_id'];
-    $paymentMethod = $_POST['payment_method'];
-
-    // Start transaction
-    $conn->begin_transaction();
-
-    try {
-        // Update order status and set StaffID
-        $stmt = $conn->prepare("UPDATE order_details SET Status = 'In Progress', StaffID = ? WHERE OrderID = ?");
-        $stmt->bind_param("ss", $staffID, $orderID);
-        $stmt->execute();
-        $stmt->close();
-
-        // Update payment method
-        $stmt2 = $conn->prepare("UPDATE payments SET PaymentMethod = ? WHERE OrderID = ?");
-        $stmt2->bind_param("ss", $paymentMethod, $orderID);
-        $stmt2->execute();
-        $stmt2->close();
-
-        // Commit transaction
-        $conn->commit();
-        
-        // Refresh page to show updated list
-        header("Location: staffHome.php");
-        exit();
-    } catch (Exception $e) {
-        $conn->rollback();
-        die("Error approving order: " . $e->getMessage());
-    }
-}
-
 // Fetch pending orders
-$sql = "
+$sqlPending = "
+    SELECT o.OrderID, c.CustomerName, od.ServiceID, od.FileName 
+    FROM orders o
+    JOIN customers c ON o.CustomerID = c.CustomerID
+    JOIN order_details od ON o.OrderID = od.OrderID
+    WHERE od.Status = 'Pending'
+";
+
+$resultPending = $conn->query($sqlPending);
+
+// Fetch in-progress orders with payment proof
+$sqlInProgress = "
     SELECT o.OrderID, c.CustomerName, od.ServiceID, od.FileName, p.PaymentProof 
     FROM orders o
     JOIN customers c ON o.CustomerID = c.CustomerID
     JOIN order_details od ON o.OrderID = od.OrderID
     LEFT JOIN payments p ON o.OrderID = p.OrderID
-    WHERE od.Status = 'Pending'
+    WHERE od.Status = 'In Progress'
 ";
 
-$result = $conn->query($sql);
+$resultInProgress = $conn->query($sqlInProgress);
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Staff Dashboard - Pending Orders</title>
+  <meta charset="UTF-8">
+  <title>Staff Dashboard</title>
   <style>
-    body { font-family: Arial; padding: 30px; }
-    .order { 
-        border: 1px solid #ccc; 
-        padding: 20px; 
-        margin-bottom: 20px; 
-        position: relative;
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
     }
-    .order h3 { margin-top: 0; }
-    a { display: inline-block; margin-top: 10px; }
-    .proof-preview {
-        max-width: 200px;
-        max-height: 200px;
-        border: 1px solid #ddd;
-        margin: 10px 0;
+
+    header {
+      background-color: #007BFF;
+      color: white;
+      padding: 20px;
+      text-align: center;
     }
-    .approval-form {
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 1px dashed #ccc;
+
+    .dashboard {
+      display: flex;
+      gap: 20px;
+      padding: 30px;
+      justify-content: space-between;
+      flex-wrap: wrap;
     }
-    select, button {
-        padding: 8px;
-        margin-top: 5px;
+
+    .column {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      width: 31%;
+      box-sizing: border-box;
+      min-width: 300px;
     }
-    button.approve-btn {
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        padding: 8px 15px;
-        cursor: pointer;
+
+    h2 {
+      font-size: 18px;
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+
+    .order-card {
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+    }
+
+    .order-card p {
+      margin: 5px 0;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 12px;
+      margin-top: 10px;
+      text-decoration: none;
+      color: white;
+      background-color: #007BFF;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .btn.green {
+      background-color: #28a745;
+    }
+
+    .btn.red {
+      background-color: #dc3545;
+    }
+
+    .manual-booking,
+    .report-section {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      width: 80%;
+      max-width: 600px;
+    }
+
+    .close-modal {
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    @media (max-width: 1000px) {
+      .dashboard {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .column {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
 
-<h1>Pending Orders</h1>
+<header>
+  <h1>Staff Dashboard</h1>
+  <p>Welcome, <?= htmlspecialchars($_SESSION['user_name'] ?? 'Staff') ?></p>
+</header>
 
-<?php while ($row = $result->fetch_assoc()): ?>
-  <div class="order">
-    <h3>Order ID: <?= htmlspecialchars($row['OrderID']) ?></h3>
-    <p><strong>Customer:</strong> <?= htmlspecialchars($row['CustomerName']) ?></p>
-    <p><strong>Service:</strong> <?= htmlspecialchars($row['ServiceID']) ?></p>
-    
-    <?php if ($row['FileName']): ?>
-      <p><a href="uploads/<?= htmlspecialchars($row['FileName']) ?>" target="_blank">📄 Download Print File</a></p>
+<div class="dashboard">
+
+  <!-- LEFT COLUMN: PENDING ORDERS -->
+  <div class="column">
+    <h2>Pending Orders</h2>
+
+    <?php if ($resultPending && $resultPending->num_rows > 0): ?>
+      <?php while ($row = $resultPending->fetch_assoc()): ?>
+        <div class="order-card">
+          <p><strong>Order ID:</strong> <?= htmlspecialchars($row['OrderID']) ?></p>
+          <p><strong>Customer:</strong> <?= htmlspecialchars($row['CustomerName']) ?></p>
+          <p><strong>Service:</strong> <?= htmlspecialchars($row['ServiceID']) ?></p>
+
+          <?php if (!empty($row['FileName'])): ?>
+            <a href="uploads/<?= htmlspecialchars($row['FileName']) ?>" download class="btn">📄 Download File</a>
+          <?php else: ?>
+            <p style="color:red;"></p>
+          <?php endif; ?>
+
+          <a href="approveOrder.php?orderID=<?= urlencode($row['OrderID']) ?>" class="btn green">Approve Order</a>
+        </div>
+      <?php endwhile; ?>
+    <?php else: ?>
+      <p>No pending orders.</p>
     <?php endif; ?>
+  </div>
 
-    <?php if ($row['PaymentProof']): ?>
-      <p><a href="payments/<?= htmlspecialchars($row['PaymentProof']) ?>" target="_blank" download>💳 Download Payment Proof</a></p>
-      <?php 
-      $ext = pathinfo($row['PaymentProof'], PATHINFO_EXTENSION);
-      if (in_array(strtolower($ext), ['jpg', 'jpeg', 'png', 'gif'])): ?>
-        <img src="payments/<?= htmlspecialchars($row['PaymentProof']) ?>" class="proof-preview" alt="Payment Proof">
-      <?php endif; ?>
+  <!-- MIDDLE COLUMN: IN PROGRESS ORDERS -->
+  <div class="column">
+    <h2>In Progress Orders</h2>
+
+    <?php if ($resultInProgress && $resultInProgress->num_rows > 0): ?>
+      <?php while ($row = $resultInProgress->fetch_assoc()): ?>
+        <div class="order-card">
+          <p><strong>Order ID:</strong> <?= htmlspecialchars($row['OrderID']) ?></p>
+          <p><strong>Customer:</strong> <?= htmlspecialchars($row['CustomerName']) ?></p>
+          <p><strong>Service:</strong> <?= htmlspecialchars($row['ServiceID']) ?></p>
+
+          <?php if (!empty($row['FileName'])): ?>
+            <a href="uploads/<?= htmlspecialchars($row['FileName']) ?>" download class="btn">📄 Download Print File</a>
+          <?php else: ?>
+            <p style="color:red;">❌ No print file</p>
+          <?php endif; ?>
+
+          <?php if (!empty($row['PaymentProof'])): ?>
+            <a href="payments/<?= htmlspecialchars($row['PaymentProof']) ?>" download class="btn red">💳 Download Payment Proof</a>
+          <?php else: ?>
+            <p style="color:red;">❌ No payment proof</p>
+          <?php endif; ?>   
+
+          <a href="markAsDone.php?orderID=<?= urlencode($row['OrderID']) ?>" class="btn red">✅ Mark as Done</a>
+          <button onclick="showModal('orderDetailsModal', <?= json_encode($row) ?>)">View Details</button>
+        </div>
+      <?php endwhile; ?>
+    <?php else: ?>
+      <p>No in-progress orders.</p>
     <?php endif; ?>
+  </div>
 
-    <div class="approval-form">
-      <form method="post">
-        <input type="hidden" name="order_id" value="<?= htmlspecialchars($row['OrderID']) ?>">
-        
-        <label for="payment_method_<?= htmlspecialchars($row['OrderID']) ?>">Payment Method:</label>
-        <select name="payment_method" id="payment_method_<?= htmlspecialchars($row['OrderID']) ?>" required>
-          <option value="">-- Select --</option>
-          <option value="Cash">Cash</option>
-          <option value="eWallet">eWallet</option>
-          <option value="Online Banking">Online Banking</option>
-        </select>
-        
-        <button type="submit" name="approve_order" class="approve-btn">✔️ Approve Order</button>
-      </form>
+  <!-- RIGHT COLUMN: ACTIONS -->
+  <div class="column">
+    <h2>Quick Actions</h2>
+
+    <!-- MANUAL BOOKING BOX -->
+    <div class="manual-booking">
+      <h3 style="margin-top: 0;">Manual Booking</h3>
+      <p>Create a new order for a customer who came in person.</p>
+      <a href="manualBookingForm.php" class="btn green">➕ Create Manual Booking</a>
+    </div>
+
+    <br>
+
+    <!-- REPORT GENERATION BOX -->
+    <div class="report-section">
+      <h3 style="margin-top: 0;">Generate Reports</h3>
+      <p>Export daily/weekly/monthly reports of all orders or staff performance.</p>
+      <a href="generateReport.php" class="btn red">📊 Generate Report</a>
     </div>
   </div>
-<?php endwhile; ?>
+
+</div>
+
+<!-- Modal for Order Details -->
+<div id="orderDetailsModal" class="modal">
+  <div class="modal-content">
+    <span class="close-modal" onclick="closeModal('orderDetailsModal')">×</span>
+    <h3>Order Details</h3>
+    <p><strong>Order ID:</strong> <span id="modal-order-id"></span></p>
+    <p><strong>Customer:</strong> <span id="modal-customer-name"></span></p>
+    <p><strong>Service:</strong> <span id="modal-service-id"></span></p>
+    <p><strong>Status:</strong> In Progress</p>
+    <p><strong>Print File:</strong> <span id="modal-file-name"></span></p>
+    <p><strong>Payment Proof:</strong> <span id="modal-payment-proof"></span></p>
+  </div>
+</div>
+
+<script>
+function showModal(modalId, orderData) {
+  const modal = document.getElementById(modalId);
+  modal.style.display = "block";
+
+  // Populate modal content
+  document.getElementById('modal-order-id').textContent = orderData.OrderID;
+  document.getElementById('modal-customer-name').textContent = orderData.CustomerName;
+  document.getElementById('modal-service-id').textContent = orderData.ServiceID;
+  document.getElementById('modal-file-name').textContent = orderData.FileName || '❌ Not uploaded';
+  document.getElementById('modal-payment-proof').textContent = orderData.PaymentProof || '❌ Not uploaded';
+}
+
+function closeModal(modalId) {
+  const modal = document.getElementById(modalId);
+  modal.style.display = "none";
+}
+</script>
 
 </body>
 </html>

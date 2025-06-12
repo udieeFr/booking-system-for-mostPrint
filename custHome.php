@@ -23,7 +23,7 @@ $customerID = $_SESSION['user_id'];
 
 // Fetch active orders (Pending or In Progress)
 $pending_sql = "
-    SELECT od.OrderID, od.ServiceID, od.Status, od.Price, s.ServiceType, od.FileName
+    SELECT od.OrderID, od.ServiceID, od.Status, od.Price, s.ServiceType, od.FileName, o.OrderDate
     FROM order_details od
     JOIN orders o ON od.OrderID = o.OrderID
     JOIN services s ON od.ServiceID = s.ServiceID
@@ -67,7 +67,7 @@ while ($row = mysqli_fetch_assoc($completed_result)) {
 
 // Fetch all completed orders (for left column)
 $all_completed_sql = "
-    SELECT od.OrderID, od.ServiceID, od.Status, od.Price, s.ServiceType
+    SELECT od.OrderID, od.ServiceID, od.Status, od.Price, s.ServiceType, o.OrderDate
     FROM order_details od
     JOIN orders o ON od.OrderID = o.OrderID
     JOIN services s ON od.ServiceID = s.ServiceID
@@ -96,35 +96,23 @@ mysqli_close($conn);
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Printing Company - Customer Home</title>
   <style>
+    /* Consistent with login page styles */
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #f4f4f4;
+      background: url('img/background.jpg');
+      background-size: cover;
+      color: #333;
     }
 
     header {
-      background-color: #007BFF;
-      color: white;
+      background: rgba(219, 203, 146, 0.85);
+      color: #333;
       padding: 20px;
       text-align: center;
       position: relative;
-    }
-
-    .create-order-btn {
-      position: absolute;
-      right: 20px;
-      top: 20px;
-      background-color: #ffc107;
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 6px;
-      text-decoration: none;
-      font-weight: bold;
-      transition: background-color 0.3s ease;
-    }
-
-    .create-order-btn:hover {
-      background-color: #e0a800;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
 
     .welcome {
@@ -140,37 +128,67 @@ mysqli_close($conn);
       font-size: 24px;
     }
 
-    p {
-      margin-top: 5px;
-      font-size: 14px;
+    .btn {
+      display: inline-block;
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
     }
 
-    .top-section {
+    .btn:hover {
+      background-color: #45a049;
+    }
+
+    .create-order-btn {
+      position: absolute;
+      right: 20px;
+      top: 20px;
+      background-color: #007BFF;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      text-decoration: none;
+      transition: background-color 0.3s;
+    }
+
+    .create-order-btn:hover {
+      background-color: #0069d9;
+    }
+
+    .dashboard-container {
       display: flex;
-      justify-content: space-around;
-      padding: 40px 20px;
-      background-color: #fff;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      justify-content: center;
+      padding: 30px;
+      gap: 20px;
+      flex-wrap: wrap;
     }
 
-    .order-category {
-      width: 30%;
-      background-color: #e9ecef;
-      border-radius: 8px;
+    .order-section {
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 10px;
       padding: 20px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      width: 30%;
+      min-width: 300px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      backdrop-filter: blur(5px);
     }
 
-    .order-category h2 {
+    .order-section h2 {
       text-align: center;
-      margin-bottom: 15px;
-      font-size: 20px;
+      margin-top: 0;
       color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
     }
 
     .order-item {
-      background-color: #fff;
-      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
       padding: 15px;
       margin-bottom: 15px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -178,14 +196,7 @@ mysqli_close($conn);
 
     .order-item h3 {
       margin: 0 0 5px;
-      font-size: 16px;
       color: #007BFF;
-    }
-
-    .order-item p {
-      margin: 6px 0;
-      font-size: 14px;
-      color: #555;
     }
 
     .status-badge {
@@ -221,102 +232,153 @@ mysqli_close($conn);
       text-decoration: underline;
     }
 
-    @media (max-width: 900px) {
-      .top-section {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .order-category {
-        width: 100%;
-        margin-bottom: 20px;
-      }
-    }
-
     .empty-state {
       text-align: center;
       color: #6c757d;
       padding: 20px 0;
     }
+
+    @media (max-width: 900px) {
+      .dashboard-container {
+        flex-direction: column;
+        align-items: center;
+      }
+      .order-section {
+        width: 90%;
+      }
+    }
+
+    /* Toast notification - matches login page */
+    .toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 5px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+      min-width: 250px;
+      text-align: center;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .toast.success {
+      background-color: #28a745;
+    }
+
+    .toast.error {
+      background-color: #dc3545;
+    }
   </style>
 </head>
 <body>
 
+
+<div id="toast" class="toast"></div>
+
 <header>
   <div class="welcome">Welcome, <?= htmlspecialchars($_SESSION['user_name']) ?></div>
   <h1>Your Printing Dashboard</h1>
-  <p>Your one-stop solution for all printing needs</p>
-  <a href="logout.php" class="btn logout">Logout</a>
+  <a href="logout.php" class="btn">Logout</a>
   <a href="createOrder.php" class="create-order-btn">➕ Create New Order</a>
 </header>
 
-<div class="top-section">
-  <!-- Previous Orders (Left) -->
-  <div class="order-category">
+<div class="dashboard-container">
+  <!-- All Completed Orders -->
+  <div class="order-section">
     <h2>All Completed Orders</h2>
-    <div class="order-list">
-      <?php if (!empty($completed_orders)): ?>
-        <?php foreach ($completed_orders as $order): ?>
-          <div class="order-item">
-            <h3>Order #<?= htmlspecialchars($order['OrderID']) ?></h3>
-            <p>Service: <?= htmlspecialchars($order['ServiceType']) ?></p>
-            <p>Status: <span class="status-badge status-done"><?= htmlspecialchars($order['Status']) ?></span></p>
-            <p>Price: RM<?= number_format($order['Price'], 2) ?></p>
-          </div>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <div class="empty-state">No completed orders yet</div>
-      <?php endif; ?>
-    </div>
+    <?php if (!empty($completed_orders)): ?>
+      <?php foreach ($completed_orders as $order): ?>
+        <div class="order-item">
+          <h3>Order #<?= htmlspecialchars($order['OrderID']) ?></h3>
+          <p>Service: <?= htmlspecialchars($order['ServiceType']) ?></p>
+          <p>Completed: <?= date('M j, Y', strtotime($order['OrderDate'])) ?></p>
+          <p>Price: RM<?= number_format($order['Price'], 2) ?></p>
+          <p>Status: <span class="status-badge status-done"><?= htmlspecialchars($order['Status']) ?></span></p>
+        </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="empty-state">No completed orders yet</div>
+    <?php endif; ?>
   </div>
 
-  <!-- Active Orders (Middle) -->
-  <div class="order-category">
+  <!-- Active Orders -->
+  <div class="order-section">
     <h2>Active Orders</h2>
-    <div class="order-list">
-      <?php if (!empty($active_orders)): ?>
-        <?php foreach ($active_orders as $order): ?>
-          <div class="order-item">
-            <h3>Order #<?= htmlspecialchars($order['OrderID']) ?></h3>
-            <p>Service: <?= htmlspecialchars($order['ServiceType']) ?></p>
-            <p>Status: 
-              <span class="status-badge <?= 
-                $order['Status'] === 'Pending' ? 'status-pending' : 'status-inprogress'
-              ?>">
-                <?= htmlspecialchars($order['Status']) ?>
-              </span>
-            </p>
-            <p>Price: RM<?= number_format($order['Price'], 2) ?></p>
-            <?php if (!empty($order['FileName'])): ?>
-              <p><a href="uploads/<?= htmlspecialchars($order['FileName']) ?>" class="file-link" target="_blank">📄 Download File</a></p>
-            <?php endif; ?>
-          </div>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <div class="empty-state">No active orders</div>
-      <?php endif; ?>
-    </div>
+    <?php if (!empty($active_orders)): ?>
+      <?php foreach ($active_orders as $order): ?>
+        <div class="order-item">
+          <h3>Order #<?= htmlspecialchars($order['OrderID']) ?></h3>
+          <p>Service: <?= htmlspecialchars($order['ServiceType']) ?></p>
+          <p>Date: <?= date('M j, Y', strtotime($order['OrderDate'])) ?></p>
+          <p>Price: RM<?= number_format($order['Price'], 2) ?></p>
+          <p>Status: 
+            <span class="status-badge <?= 
+              $order['Status'] === 'Pending' ? 'status-pending' : 'status-inprogress'
+            ?>">
+              <?= htmlspecialchars($order['Status']) ?>
+            </span>
+          </p>
+          <?php if (!empty($order['FileName'])): ?>
+            <p><a href="uploads/<?= htmlspecialchars($order['FileName']) ?>" class="file-link" target="_blank">📄 Download File</a></p>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="empty-state">No active orders</div>
+    <?php endif; ?>
   </div>
 
-  <!-- Recently Completed Orders (Right) -->
-  <div class="order-category">
+  <!-- Recently Completed Orders -->
+  <div class="order-section">
     <h2>Recently Completed</h2>
-    <div class="order-list">
-      <?php if (!empty($recent_orders)): ?>
-        <?php foreach ($recent_orders as $order): ?>
-          <div class="order-item">
-            <h3>Order #<?= htmlspecialchars($order['OrderID']) ?></h3>
-            <p>Service: <?= htmlspecialchars($order['ServiceType']) ?></p>
-            <p>Completed: <?= date('M j, Y', strtotime($order['OrderDate'])) ?></p>
-            <p>Price: RM<?= number_format($order['Price'], 2) ?></p>
-          </div>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <div class="empty-state">No recent completions</div>
-      <?php endif; ?>
-    </div>
+    <?php if (!empty($recent_orders)): ?>
+      <?php foreach ($recent_orders as $order): ?>
+        <div class="order-item">
+          <h3>Order #<?= htmlspecialchars($order['OrderID']) ?></h3>
+          <p>Service: <?= htmlspecialchars($order['ServiceType']) ?></p>
+          <p>Completed: <?= date('M j, Y', strtotime($order['OrderDate'])) ?></p>
+          <p>Price: RM<?= number_format($order['Price'], 2) ?></p>
+        </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="empty-state">No recent completions</div>
+    <?php endif; ?>
   </div>
 </div>
+
+<script>
+  // Toast notification function (matches login page)
+  function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast ' + type;
+    toast.classList.add('show');
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3000);
+  }
+
+  // Check for success/error messages in URL
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('success')) {
+      showToast(urlParams.get('success'));
+    }
+    if (urlParams.has('error')) {
+      showToast(urlParams.get('error'), 'error');
+    }
+  });
+</script>
 
 </body>
 </html>

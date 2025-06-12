@@ -84,7 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <meta charset="UTF-8">
   <title>Confirm Order</title>
   <style>
-    body { font-family: Arial; padding: 30px; max-width: 500px; margin: auto; background: #f4f4f4f4; }
+    body { font-family: Arial; padding: 30px; max-width: 500px; margin: auto; background:rgb(215, 174, 26);  }
     h2, label { text-align: center; display: block; margin-top: 20px; }
     p { text-align: center; font-size: 16px; color: green; }
     input[type="file"], select, button {

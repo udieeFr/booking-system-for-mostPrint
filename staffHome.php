@@ -20,9 +20,9 @@ $sqlPending = "
 
 $resultPending = $conn->query($sqlPending);
 
-// Fetch in-progress orders with payment proof
+// Fetch in-progress orders with payment proof (fixed missing comma)
 $sqlInProgress = "
-    SELECT o.OrderID, c.CustomerName, od.ServiceID, od.FileName, p.PaymentProof 
+    SELECT o.OrderID, c.CustomerName, c.PhoneNumber, od.ServiceID, od.FileName, p.PaymentProof 
     FROM orders o
     JOIN customers c ON o.CustomerID = c.CustomerID
     JOIN order_details od ON o.OrderID = od.OrderID
@@ -41,14 +41,32 @@ $resultInProgress = $conn->query($sqlInProgress);
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
+      background: url('img/background.jpg');
+      background-size: cover;
+      color: #333;
     }
 
     header {
-      background-color: #007BFF;
-      color: white;
+      background: linear-gradient(90deg, #ff6b35, #f7dc6f); /* Orange to Yellow Gradient */
+      color: #333;
       padding: 20px;
       text-align: center;
+      position: relative;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .welcome {
+      position: absolute;
+      left: 20px;
+      top: 20px;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
     }
 
     .dashboard {
@@ -98,6 +116,8 @@ $resultInProgress = $conn->query($sqlInProgress);
       background-color: #007BFF;
       border-radius: 4px;
       font-size: 14px;
+      border: none;
+      cursor: pointer;
     }
 
     .btn.green {
@@ -106,6 +126,20 @@ $resultInProgress = $conn->query($sqlInProgress);
 
     .btn.red {
       background-color: #dc3545;
+    }
+
+    .view-details-btn {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .view-details-btn:hover {
+      background-color: #5a6268;
     }
 
     .manual-booking,
@@ -120,7 +154,7 @@ $resultInProgress = $conn->query($sqlInProgress);
     .modal {
       display: none;
       position: fixed;
-      z-index: 1;
+      z-index: 1000;
       left: 0;
       top: 0;
       width: 100%;
@@ -136,15 +170,21 @@ $resultInProgress = $conn->query($sqlInProgress);
       border: 1px solid #ccc;
       width: 80%;
       max-width: 600px;
+      border-radius: 8px;
     }
 
     .close-modal {
       float: right;
-      font-size: 28px;
+      font-size: 24px;
       font-weight: bold;
       cursor: pointer;
+      color: #333;
     }
 
+    .close-modal:hover {
+      color: #dc3545;
+    }
+    
     @media (max-width: 1000px) {
       .dashboard {
         flex-direction: column;
@@ -159,8 +199,8 @@ $resultInProgress = $conn->query($sqlInProgress);
 <body>
 
 <header>
+  <div class="welcome">Welcome, <?= htmlspecialchars($_SESSION['user_name'] ?? 'Staff') ?></div>
   <h1>Staff Dashboard</h1>
-  <p>Welcome, <?= htmlspecialchars($_SESSION['user_name'] ?? 'Staff') ?></p>
 </header>
 
 <div class="dashboard">
@@ -179,7 +219,7 @@ $resultInProgress = $conn->query($sqlInProgress);
           <?php if (!empty($row['FileName'])): ?>
             <a href="uploads/<?= htmlspecialchars($row['FileName']) ?>" download class="btn">📄 Download File</a>
           <?php else: ?>
-            <p style="color:red;"></p>
+            <p style="color:red;">❌ No file uploaded</p>
           <?php endif; ?>
 
           <a href="approveOrder.php?orderID=<?= urlencode($row['OrderID']) ?>" class="btn green">Approve Order</a>
@@ -214,7 +254,7 @@ $resultInProgress = $conn->query($sqlInProgress);
           <?php endif; ?>   
 
           <a href="markAsDone.php?orderID=<?= urlencode($row['OrderID']) ?>" class="btn red">✅ Mark as Done</a>
-          <button onclick="showModal('orderDetailsModal', <?= json_encode($row) ?>)">View Details</button>
+          <button class="view-details-btn" onclick="showModal('orderDetailsModal', <?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>)">View Details</button>
         </div>
       <?php endwhile; ?>
     <?php else: ?>
@@ -248,10 +288,11 @@ $resultInProgress = $conn->query($sqlInProgress);
 <!-- Modal for Order Details -->
 <div id="orderDetailsModal" class="modal">
   <div class="modal-content">
-    <span class="close-modal" onclick="closeModal('orderDetailsModal')">×</span>
+    <span class="close-modal" onclick="closeModal('orderDetailsModal')">&times;</span>
     <h3>Order Details</h3>
     <p><strong>Order ID:</strong> <span id="modal-order-id"></span></p>
     <p><strong>Customer:</strong> <span id="modal-customer-name"></span></p>
+    <p><strong>Phone Number:</strong> <span id="modal-customer-phone"></span></p>
     <p><strong>Service:</strong> <span id="modal-service-id"></span></p>
     <p><strong>Status:</strong> In Progress</p>
     <p><strong>Print File:</strong> <span id="modal-file-name"></span></p>
@@ -262,19 +303,29 @@ $resultInProgress = $conn->query($sqlInProgress);
 <script>
 function showModal(modalId, orderData) {
   const modal = document.getElementById(modalId);
+  if (!modal) return;
+
   modal.style.display = "block";
 
   // Populate modal content
-  document.getElementById('modal-order-id').textContent = orderData.OrderID;
-  document.getElementById('modal-customer-name').textContent = orderData.CustomerName;
-  document.getElementById('modal-service-id').textContent = orderData.ServiceID;
+  document.getElementById('modal-order-id').textContent = orderData.OrderID || 'N/A';
+  document.getElementById('modal-customer-name').textContent = orderData.CustomerName || 'N/A';
+  document.getElementById('modal-customer-phone').textContent = orderData.PhoneNumber || '❌ Not available';
+  document.getElementById('modal-service-id').textContent = orderData.ServiceID || 'N/A';
   document.getElementById('modal-file-name').textContent = orderData.FileName || '❌ Not uploaded';
   document.getElementById('modal-payment-proof').textContent = orderData.PaymentProof || '❌ Not uploaded';
 }
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
-  modal.style.display = "none";
+  if (modal) modal.style.display = "none";
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  if (event.target.classList.contains('modal')) {
+    event.target.style.display = "none";
+  }
 }
 </script>
 

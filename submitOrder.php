@@ -23,6 +23,7 @@ $status = 'Pending';
 $orderID = $orderData['orderID'];
 $serviceID = $orderData['serviceID'];
 $totalPrice = $orderData['totalPrice'];
+$fileName = $orderData['fileName']; // Get the filename from session
 $tempPdfPath = $orderData['pdfTempPath'];
 
 // Handle payment proof upload
@@ -46,7 +47,7 @@ if (isset($_FILES['paymentProof']) && $_FILES['paymentProof']['error'] === UPLOA
 }
 
 // Move PDF from temp to final folder
-$finalPdfPath = "uploads/" . $orderData['fileName'];
+$finalPdfPath = "uploads/" . $fileName;
 if (file_exists($tempPdfPath)) {
     // Create uploads directory if it doesn't exist
     if (!file_exists('uploads')) {
@@ -66,9 +67,9 @@ try {
     $stmt->bind_param("sis", $orderID, $customerID, $orderDate);
     $stmt->execute();
 
-    // Insert into order_details (corrected to match schema)
-    $stmt2 = $conn->prepare("INSERT INTO order_details (OrderID, ServiceID, Status, Price) VALUES (?, ?, ?, ?)");
-    $stmt2->bind_param("sssd", $orderID, $serviceID, $status, $totalPrice);
+    // Insert into order_details - ADDED FILENAME HERE
+    $stmt2 = $conn->prepare("INSERT INTO order_details (OrderID, ServiceID, Status, Price, FileName) VALUES (?, ?, ?, ?, ?)");
+    $stmt2->bind_param("sssds", $orderID, $serviceID, $status, $totalPrice, $fileName);
     $stmt2->execute();
 
     // Insert into payments

@@ -9,6 +9,7 @@ $data = $_SESSION['manualOrderData'];
 
 // These are set in confirmManualOrder.php
 $customerName = $data['customerName'] ?? '';
+$phoneNumber = $data['phoneNumber'] ?? ''; // Get phone number from session
 $serviceID = $data['serviceID'] ?? '';
 $totalPrice = $data['totalPrice'] ?? 0;
 $tempPdfPath = $data['tempPdfPath'] ?? '';
@@ -35,7 +36,7 @@ $staffID = $_SESSION['user_id'];
 $orderDate = date('Y-m-d');
 $status = 'In Progress';
 
-// Insert or get CustomerID
+// Insert or get CustomerID - UPDATED TO INCLUDE PHONE NUMBER
 $stmt = $conn->prepare("SELECT CustomerID FROM customers WHERE CustomerName = ?");
 $stmt->bind_param("s", $customerName);
 $stmt->execute();
@@ -44,10 +45,16 @@ $stmt->fetch();
 $stmt->close();
 
 if (!$customerID) {
-    $stmt = $conn->prepare("INSERT INTO customers (CustomerName, PhoneNumber) VALUES (?, '')");
-    $stmt->bind_param("s", $customerName);
+    $stmt = $conn->prepare("INSERT INTO customers (CustomerName, PhoneNumber) VALUES (?, ?)");
+    $stmt->bind_param("ss", $customerName, $phoneNumber);
     $stmt->execute();
     $customerID = $conn->insert_id;
+    $stmt->close();
+} else {
+    // Update existing customer's phone number if it's empty or different
+    $stmt = $conn->prepare("UPDATE customers SET PhoneNumber = ? WHERE CustomerID = ? AND (PhoneNumber IS NULL OR PhoneNumber = '')");
+    $stmt->bind_param("si", $phoneNumber, $customerID);
+    $stmt->execute();
     $stmt->close();
 }
 
@@ -59,7 +66,6 @@ $stmt2->close();
 
 // Insert into order_details
 $stmt3 = $conn->prepare("INSERT INTO order_details (OrderID, ServiceID, Status, FileName, Price, StaffID) VALUES (?, ?, ?, ?, ?, ?)");
-
 $stmt3->bind_param("ssssdi", $orderID, $serviceID, $status, $fileName, $totalPrice, $staffID);
 $stmt3->execute();
 $stmt3->close();

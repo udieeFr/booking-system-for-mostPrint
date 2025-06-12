@@ -12,7 +12,8 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'customer') {
   <meta charset="UTF-8">
   <title>Create Order - Step 1</title>
   <style>
-    body { font-family: Arial; padding: 30px; max-width: 500px; margin: auto; background: #f4f4f4; }
+    
+    body { font-family: Arial; padding: 30px; max-width: 500px; margin: auto; background:rgb(215, 174, 26); }
     h2, label { text-align: center; display: block; margin-top: 20px; }
     select, button { width: 100%; padding: 10px; margin-top: 10px; font-size: 16px; }
   </style>
